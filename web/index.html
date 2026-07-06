@@ -51,12 +51,12 @@
 
       <div class="scoreboard">
         <div class="score" id="score-north">
-          <span class="score-label">North</span>
+          <span class="score-label">North <span class="streak" id="streak-north"></span></span>
           <span class="score-value" id="score-value-north">0</span>
         </div>
         <div class="turn" id="turn-indicator">South to move</div>
         <div class="score" id="score-south">
-          <span class="score-label">South</span>
+          <span class="score-label">South <span class="streak" id="streak-south"></span></span>
           <span class="score-value" id="score-value-south">0</span>
         </div>
       </div>
@@ -93,6 +93,17 @@
             Start new
           </button>
         </div>
+      </div>
+    </div>
+
+    <div class="banner-overlay" id="ota-banner" hidden>
+      <div class="banner ota-banner">
+        <div class="crown">👑</div>
+        <h2 class="banner-title" id="ota-title">Ota Champion!</h2>
+        <p class="banner-detail" id="ota-detail"></p>
+        <button type="button" class="new-game-btn" id="ota-restart">
+          Start new series
+        </button>
       </div>
     </div>
 

@@ -107,20 +107,69 @@ def _reaches_opponent(board: tuple[int, ...], pit: int, player: int) -> bool:
     return any(_is_opponent_pit(i, player) and sown[i] > board[i] for i in range(NUM_PITS))
 
 
+def simulate_move_opponent_left_empty(state: GameState, pit: int) -> bool:
+    """True if playing `pit` leaves the opponent's side entirely empty.
+
+    Simulates the move (sowing and captures) without applying grand-slam
+    annulment, then checks if the opponent's side has zero seeds.
+    """
+    board = state.board
+    player = state.player
+
+    # 1. Sow
+    sown_board, path = _apply_sow(board, pit)
+    if not path:
+        return state.side_total(1 - player) == 0
+    last = path[-1]
+
+    # 2. Capture (without grand-slam annulment)
+    if _is_opponent_pit(last, player) and sown_board[last] == 4:
+        captured_pits = []
+        idx = last
+        while _is_opponent_pit(idx, player) and sown_board[idx] == 4:
+            captured_pits.append(idx)
+            idx = (idx - 1) % NUM_PITS
+
+        new_board = list(sown_board)
+        for p in captured_pits:
+            new_board[p] = 0
+        final_board = tuple(new_board)
+    else:
+        final_board = sown_board
+
+    # 3. Check if opponent's side is empty
+    opp_start = (1 - player) * PITS_PER_SIDE
+    opp_total = sum(final_board[i] for i in range(opp_start, opp_start + PITS_PER_SIDE))
+    return opp_total == 0
+
+
 def legal_moves(state: GameState) -> list[int]:
     """Return the pits the player to move may legally play, in ascending order.
 
-    Candidates are the mover's own non-empty pits. Under the feeding rule, if the
-    opponent's side is entirely empty the mover must play a pit whose sowing
-    delivers at least one seed to the opponent; if no such move exists the list
-    is empty (the game will end by starvation — handled in endings).
+    Candidates are the mover's own non-empty pits. If the opponent's side is
+    currently empty, the player must play a pit that delivers seeds to the
+    opponent (feeding rule); if no such move exists, the returned list is empty
+    (game over by starvation).
+
+    If the opponent's side is not empty, the player must choose a move that
+    does not leave the opponent with zero seeds (either by capturing all their
+    seeds or failing to feed them). A move that leaves the opponent empty is
+    only legal if all available moves would do so (in which case the capture is
+    annulled to let the game continue).
     """
     board = state.board
     player = state.player
     candidates = [p for p in state.own_pits() if board[p] > 0]
 
+    # If opponent's side is already empty, we must feed them.
+    # If we cannot feed them, no moves are legal (starvation ending).
     if state.side_total(1 - player) == 0:
         return [p for p in candidates if _reaches_opponent(board, p, player)]
+
+    # If opponent has seeds, avoid moves that would empty their side.
+    non_starving = [p for p in candidates if not simulate_move_opponent_left_empty(state, p)]
+    if non_starving:
+        return non_starving
 
     return candidates
 

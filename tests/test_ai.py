@@ -29,10 +29,12 @@ def _reference_negamax(state: GameState, depth: int) -> float:
 def _random_position(rng: random.Random, max_plies: int) -> GameState:
     """A position reached by playing up to `max_plies` random legal moves."""
     state = GameState.initial()
+    history = []
     for _ in range(rng.randint(0, max_plies)):
         moves = legal_moves(state)
-        if not moves or check_game_over(state) is not None:
+        if not moves or check_game_over(state, history) is not None:
             break
+        history.append(state)
         state, _ = apply_move(state, rng.choice(moves))
     return state
 
@@ -158,8 +160,9 @@ def test_beats_random_mover():
     for g in range(games):
         ai_player = g % 2  # alternate colors so first-move advantage is fair
         state = GameState.initial()
+        history = []
         while True:
-            over = check_game_over(state)
+            over = check_game_over(state, history)
             if over is not None:
                 if over["winner"] == ai_player:
                     wins += 1
@@ -171,6 +174,7 @@ def test_beats_random_mover():
                 move, _ = choose_move(state, time_limit_ms=10_000, max_depth=3)
             else:
                 move = rng.choice(moves)
+            history.append(state)
             state, _ = apply_move(state, move)
     assert wins >= 95
 
@@ -188,8 +192,9 @@ def test_hard_beats_medium():
             continue
         for hard_player in (0, 1):
             state = opening
+            history = []
             while True:
-                over = check_game_over(state)
+                over = check_game_over(state, history)
                 if over is not None:
                     if over["winner"] == hard_player:
                         hard_wins += 1
@@ -201,6 +206,7 @@ def test_hard_beats_medium():
                     break
                 depth = 4 if state.player == hard_player else 2
                 move, _ = choose_move(state, time_limit_ms=10_000, max_depth=depth)
+                history.append(state)
                 state, _ = apply_move(state, move)
     assert hard_wins > medium_wins
 

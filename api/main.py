@@ -76,6 +76,7 @@ class NewGameResponse(BaseModel):
 class MoveRequest(BaseModel):
     state: StateModel
     pit: int
+    history: list[StateModel] | None = None
 
 
 class MoveResponse(BaseModel):
@@ -91,6 +92,7 @@ class CpuMoveRequest(BaseModel):
     # Optional override of the difficulty's search budget (used by tests to keep
     # "hard" fast); ignored for "easy".
     time_limit_ms: int | None = Field(default=None, ge=0)
+    history: list[StateModel] | None = None
 
 
 class CpuMoveResponse(MoveResponse):
@@ -132,11 +134,14 @@ def move(req: MoveRequest) -> MoveResponse:
     except IllegalMove as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
+    history_states = [to_state(h) for h in req.history] if req.history else None
+    new_history = history_states + [state] if history_states is not None else None
+
     return MoveResponse(
         state=from_state(new_state),
         events=events,
         legal_moves=legal_moves(new_state),
-        game_over=check_game_over(new_state),
+        game_over=check_game_over(new_state, new_history),
     )
 
 
@@ -151,8 +156,9 @@ def cpu_move(req: CpuMoveRequest) -> CpuMoveResponse:
     is played and `chosen_pit` is null.
     """
     state = to_state(req.state)
+    history_states = [to_state(h) for h in req.history] if req.history else None
 
-    game_over = check_game_over(state)
+    game_over = check_game_over(state, history_states)
     legal = legal_moves(state)
     if game_over is not None or not legal:
         return CpuMoveResponse(
@@ -173,12 +179,13 @@ def cpu_move(req: CpuMoveRequest) -> CpuMoveResponse:
         )
         pit, _info = choose_move(state, time_limit_ms=budget)
     new_state, events = apply_move(state, pit)
+    new_history = history_states + [state] if history_states is not None else None
 
     return CpuMoveResponse(
         state=from_state(new_state),
         events=events,
         legal_moves=legal_moves(new_state),
-        game_over=check_game_over(new_state),
+        game_over=check_game_over(new_state, new_history),
         chosen_pit=pit,
     )
 

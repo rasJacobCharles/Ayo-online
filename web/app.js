@@ -29,10 +29,11 @@ const GAME_OVER_DETAIL = {
   score: "",
   draw: "",
   starvation: "by starvation",
-  ply_cap: "move limit reached",
+  repetition: "by repetition",
 };
 
 const STORAGE_KEY = "ayo.save.v1";
+const SERIES_KEY = "ayo.series.v1";
 
 const el = {
   board: document.getElementById("board"),
@@ -60,12 +61,17 @@ const el = {
   bannerTitle: document.getElementById("banner-title"),
   bannerDetail: document.getElementById("banner-detail"),
   bannerNewGame: document.getElementById("banner-new-game"),
+  otaBanner: document.getElementById("ota-banner"),
+  otaTitle: document.getElementById("ota-title"),
+  otaDetail: document.getElementById("ota-detail"),
+  otaRestart: document.getElementById("ota-restart"),
 };
 
 const game = {
   state: null,
   legalMoves: [],
   history: [], // [{ pit, events }] — one entry per applied ply, human and CPU
+  stateHistory: [], // [StateModel] — full states visited so far (for repetition detection)
   mode: "pvp", // "pvp" | "cpu"
   difficulty: "medium", // "easy" | "medium" | "hard" — CPU strength
   busy: false, // a move (possibly incl. the CPU reply) is being processed
@@ -152,6 +158,7 @@ function save() {
         mode: game.mode,
         difficulty: game.difficulty,
         history: game.history,
+        stateHistory: game.stateHistory,
         legalMoves: game.legalMoves,
         over: game.over,
       })
@@ -167,6 +174,72 @@ function loadSave() {
   } catch {
     return null;
   }
+}
+
+function loadSeries() {
+  try {
+    const val = localStorage.getItem(SERIES_KEY);
+    if (val) return JSON.parse(val);
+  } catch {
+    // Ignore
+  }
+  return { consecutiveWins: [0, 0] };
+}
+
+function saveSeries(series) {
+  try {
+    localStorage.setItem(SERIES_KEY, JSON.stringify(series));
+  } catch {
+    // Ignore
+  }
+}
+
+function updateSeries(winner) {
+  const series = loadSeries();
+  if (winner === 0) {
+    series.consecutiveWins[0] += 1;
+    series.consecutiveWins[1] = 0;
+  } else if (winner === 1) {
+    series.consecutiveWins[1] += 1;
+    series.consecutiveWins[0] = 0;
+  } else if (winner === null || winner === undefined) {
+    series.consecutiveWins[0] = 0;
+    series.consecutiveWins[1] = 0;
+  }
+  saveSeries(series);
+  return series;
+}
+
+function showOtaBanner(player) {
+  const name = cpuLabel(player);
+  const oppName = cpuLabel(1 - player);
+  el.otaTitle.textContent = `${name} is Ota!`;
+  el.otaDetail.textContent = `${oppName} is Ope. ${name} won 3 consecutive games.`;
+  el.otaBanner.hidden = false;
+  saveSeries({ consecutiveWins: [0, 0] });
+}
+
+function handleGameResult(winner) {
+  if (winner === null || winner === undefined) {
+    updateSeries(null);
+    return;
+  }
+  const series = updateSeries(winner);
+  if (series.consecutiveWins[0] >= 3) {
+    showOtaBanner(0);
+  } else if (series.consecutiveWins[1] >= 3) {
+    showOtaBanner(1);
+  }
+}
+
+function renderStreaks() {
+  const series = loadSeries();
+  const s0 = series.consecutiveWins[0];
+  const s1 = series.consecutiveWins[1];
+  const elStreakSouth = document.getElementById("streak-south");
+  const elStreakNorth = document.getElementById("streak-north");
+  if (elStreakSouth) elStreakSouth.textContent = s0 > 0 ? `🔥 ${s0}` : "";
+  if (elStreakNorth) elStreakNorth.textContent = s1 > 0 ? `🔥 ${s1}` : "";
 }
 
 function cpuLabel(player) {
@@ -254,6 +327,8 @@ function render() {
     player === 0;
   el.hint.classList.toggle("is-hidden", !showHint);
   el.hint.disabled = game.busy || game.thinking || game.animating;
+
+  renderStreaks();
 }
 
 function setStatus(message, isError = false) {
@@ -391,6 +466,9 @@ function flySeeds(fromNode, toNode, count) {
 // played (recorded in history for undo). When `animate` is set, the sowing is
 // played back before the final board is shown. Returns true if the game ended.
 async function applyResult(data, mover, pit, animate = true) {
+  if (game.state) {
+    game.stateHistory.push(game.state);
+  }
   const preBoard = game.state.board.slice(); // board still shown before this move
   game.state = data.state;
   game.legalMoves = data.legal_moves;
@@ -414,6 +492,7 @@ async function applyResult(data, mover, pit, animate = true) {
   if (over) {
     showGameOver(data.game_over);
     if (data.game_over.winner !== null) sound.win();
+    handleGameResult(data.game_over.winner);
   }
   save();
   return over;
@@ -430,7 +509,7 @@ async function cpuMove() {
       fetch("/cpu-move", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ state: game.state, difficulty: game.difficulty }),
+        body: JSON.stringify({ state: game.state, difficulty: game.difficulty, history: game.stateHistory }),
       }),
       sleep(450),
     ]);
@@ -494,7 +573,7 @@ async function playMove(pit) {
     const res = await fetch("/move", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ state: game.state, pit }),
+      body: JSON.stringify({ state: game.state, pit, history: game.stateHistory }),
     });
     if (!res.ok) {
       const body = await res.json().catch(() => ({}));
@@ -526,6 +605,7 @@ async function newGame() {
   game.busy = false;
   game.thinking = false;
   game.history = [];
+  game.stateHistory = [];
   el.banner.hidden = true;
   el.resume.hidden = true;
   setStatus("Dealing seeds…");
@@ -568,11 +648,13 @@ async function replay(moves) {
     let legal = fresh.legal_moves;
     let gameOver = null;
     const rebuilt = [];
+    const rebuiltStates = [];
     for (const { pit } of moves) {
+      rebuiltStates.push(state);
       const res = await fetch("/move", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ state, pit }),
+        body: JSON.stringify({ state, pit, history: rebuiltStates }),
       });
       if (!res.ok) throw new Error(`replay rejected pit ${pit} (${res.status})`);
       const data = await res.json();
@@ -584,6 +666,7 @@ async function replay(moves) {
     game.state = state;
     game.legalMoves = legal;
     game.history = rebuilt;
+    game.stateHistory = rebuiltStates;
     game.over = false;
     el.banner.hidden = true;
     render();
@@ -620,6 +703,7 @@ function resumeSavedGame(saved) {
   game.mode = saved.mode || "pvp";
   game.difficulty = saved.difficulty || "medium";
   game.history = saved.history || [];
+  game.stateHistory = saved.stateHistory || [];
   game.legalMoves = saved.legalMoves || [];
   game.over = false;
   game.busy = false;
@@ -692,6 +776,10 @@ el.mute.addEventListener("click", () => {
 updateMuteButton();
 el.resumeYes.addEventListener("click", () => resumeSavedGame(loadSave()));
 el.resumeNo.addEventListener("click", newGame);
+el.otaRestart.addEventListener("click", () => {
+  el.otaBanner.hidden = true;
+  newGame();
+});
 el.modeButtons.forEach((btn) =>
   btn.addEventListener("click", () => selectMode(btn.dataset.mode))
 );

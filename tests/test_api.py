@@ -153,3 +153,31 @@ def test_state_round_trip_matches_engine():
     assert api_state["player"] == s2.player
     assert api_state["ply"] == 2 == s2.ply
     assert second.json()["legal_moves"] == legal_moves(s2)
+
+
+def test_repetition_via_api_returns_game_over():
+    # State A has player=0, 1 seed in pit 5, and 1 seed in pit 11.
+    state_a = {
+        "board": [0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1],
+        "scores": [20, 20],
+        "player": 0,
+        "ply": 10,
+    }
+    # Sowing pit 5 makes the board [0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1] with player=1.
+    # We pass that exact expected next state as our history.
+    hist = [{
+        "board": [0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1],
+        "scores": [20, 20],
+        "player": 1,
+        "ply": 9,
+    }]
+    resp = client.post("/move", json={"state": state_a, "pit": 5, "history": hist})
+    assert resp.status_code == 200
+    data = resp.json()
+    game_over = data["game_over"]
+    assert game_over is not None
+    assert game_over["reason"] == "repetition"
+    # Player 1 has 2 seeds on their side (pit 6 and pit 11), player 0 has 0.
+    # Scores: 20 + 0 = 20, 20 + 2 = 22.
+    assert game_over["scores"] == [20, 22]
+    assert game_over["winner"] == 1

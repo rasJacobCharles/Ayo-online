@@ -490,3 +490,28 @@ body {
     margin-bottom: 1.25rem;
   }
 }
+
+.streak {
+  font-size: 0.75rem;
+  color: var(--accent);
+  margin-left: 0.25rem;
+  font-weight: bold;
+}
+
+/* Ota Celebration Banner (Task 6.3) */
+.ota-banner {
+  background: radial-gradient(circle, #3d2b15, #1c140d);
+  border: 3px solid #ffd700; /* Gold border for Ota */
+  box-shadow: 0 0 30px rgba(255, 215, 0, 0.4);
+}
+
+.crown {
+  font-size: 3.5rem;
+  margin-bottom: 0.5rem;
+  animation: float 2s ease-in-out infinite;
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
+}

@@ -1,6 +1,6 @@
 """Tests for engine.endings."""
 
-from engine.endings import PLY_CAP, check_game_over
+from engine.endings import check_game_over
 from engine.state import GameState
 
 
@@ -54,15 +54,19 @@ def test_starvation_when_mover_side_empty():
     assert result == {"reason": "starvation", "winner": 1, "scores": (0, 6)}
 
 
-def test_ply_cap_collects_each_side():
-    # At the ply cap the game is stopped and each side keeps its own seeds.
-    state = GameState(board=(4,) * 12, scores=(0, 0), player=0, ply=PLY_CAP)
-    result = check_game_over(state)
-    assert result == {"reason": "ply_cap", "winner": None, "scores": (24, 24)}
+def test_repetition_collects_each_side():
+    # If the same state (board, player) has been seen before, repetition is triggered,
+    # and each side collects its own seeds.
+    board = (4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4)
+    state = GameState(board=board, scores=(0, 0), player=0)
+    history = [state]
+    result = check_game_over(state, history)
+    assert result == {"reason": "repetition", "winner": None, "scores": (24, 24)}
 
 
-def test_ply_cap_uneven_sides_pick_winner():
+def test_repetition_uneven_sides_pick_winner():
     board = (5, 5, 5, 5, 5, 5, 1, 1, 1, 1, 1, 1)
-    state = GameState(board=board, scores=(0, 0), player=0, ply=PLY_CAP + 5)
-    result = check_game_over(state)
-    assert result == {"reason": "ply_cap", "winner": 0, "scores": (30, 6)}
+    state = GameState(board=board, scores=(0, 0), player=0)
+    history = [state]
+    result = check_game_over(state, history)
+    assert result == {"reason": "repetition", "winner": 0, "scores": (30, 6)}

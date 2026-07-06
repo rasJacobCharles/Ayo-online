@@ -233,11 +233,13 @@ def test_apply_move_capture_updates_score_and_events():
 def test_apply_move_grand_slam_annulled_leaves_move_standing():
     # Capturing pit 6 would empty the opponent entirely -> annulled. The sown
     # seeds stay, nothing is scored, and an annulled_capture event is emitted.
-    board = (4, 4, 4, 4, 4, 1, 3, 0, 0, 0, 0, 0)
+    # South only has pit 5 so they have no other choice, making the move legal.
+    board = (0, 0, 0, 0, 0, 1, 3, 0, 0, 0, 0, 0)
     state = GameState(board=board, scores=(0, 0), player=0)
     new_state, events = apply_move(state, 5)
-    assert new_state.board == (4, 4, 4, 4, 4, 0, 4, 0, 0, 0, 0, 0)
+    assert new_state.board == (0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0)
     assert new_state.scores == (0, 0)
+    assert new_state.player == 1
     assert events == [
         {"type": "sow", "pit": 6},
         {"type": "annulled_capture", "pits": [6]},
@@ -253,3 +255,26 @@ def test_apply_move_illegal_raises():
     )
     with pytest.raises(IllegalMove):
         apply_move(empty_own, 0)  # own but empty
+
+
+def test_feeding_rule_lookahead_avoid_emptying_opponent():
+    # Opponent (player 1, pits 6..11) has exactly 3 seeds in pit 6, and 0 in all other pits.
+    # Player 0 (South) has:
+    # - pit 5 with 1 seed. Playing pit 5 lands in pit 6 (making it 4), which would trigger
+    #   a capture of pit 6, leaving player 1 completely empty.
+    # - pit 0 with 2 seeds. Playing pit 0 lands in pits 1 and 2, which does not empty player 1.
+    # Because player 0 has a move (pit 0) that avoids emptying the opponent, pit 5 is illegal.
+    board = (2, 0, 0, 0, 0, 1, 3, 0, 0, 0, 0, 0)
+    state = GameState(board=board, scores=(0, 0), player=0)
+    # Only pit 0 is legal because playing pit 5 would empty the opponent.
+    assert legal_moves(state) == [0]
+
+
+def test_feeding_rule_lookahead_all_moves_empty_opponent():
+    # Opponent has 3 seeds in pit 6, and 0 elsewhere.
+    # Player 0 only has pit 5 with 1 seed.
+    # Playing pit 5 would empty the opponent, but since it is the only move, it is legal.
+    # (The capture will be annulled during apply_move).
+    board = (0, 0, 0, 0, 0, 1, 3, 0, 0, 0, 0, 0)
+    state = GameState(board=board, scores=(0, 0), player=0)
+    assert legal_moves(state) == [5]
