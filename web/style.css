@@ -288,21 +288,57 @@ body {
 
 .flying-seed {
   position: fixed;
-  width: 14px;
-  height: 14px;
-  margin: -7px 0 0 -7px; /* center on the (left, top) anchor point */
-  border-radius: 50%;
-  background: radial-gradient(circle at 40% 35%, var(--pit), var(--pit-shadow));
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+  width: 16px;
+  height: 20px;
+  margin: -10px 0 0 -8px; /* center on the (left, top) anchor point */
+  border-radius: 40% 60% 50% 50% / 50% 50% 60% 40%;
+  background: radial-gradient(circle at 35% 35%, #8c5e38, #3a2410);
+  box-shadow: 0 2px 3px rgba(0, 0, 0, 0.5);
   pointer-events: none;
   z-index: 25;
   transition: transform 450ms ease-in, opacity 450ms ease-in;
 }
 
+.seed-container {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.seed {
+  position: absolute;
+  width: 16%;
+  height: 20%;
+  background: radial-gradient(circle at 35% 35%, #8c5e38, #3a2410);
+  border-radius: 40% 60% 50% 50% / 50% 50% 60% 40%;
+  box-shadow: 0 1.5px 2px rgba(0, 0, 0, 0.4), inset 0 1px 1px rgba(255, 255, 255, 0.15);
+  transition: all 0.2s ease;
+}
+
 .pit-count {
-  font-size: 1.5rem;
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  background: var(--panel);
+  color: var(--accent);
+  border: 1.5px solid var(--board-edge);
+  border-radius: 50%;
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
   font-weight: 700;
-  color: var(--seed);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+  z-index: 10;
+  pointer-events: none;
+  transition: opacity 0.2s, transform 0.2s;
+}
+
+.pit.is-empty .pit-count {
+  opacity: 0;
 }
 
 .pit-index {
@@ -468,7 +504,17 @@ body {
   }
 
   .pit-count {
-    font-size: 1.15rem;
+    width: 18px;
+    height: 18px;
+    font-size: 0.65rem;
+    top: -2px;
+    right: -2px;
+  }
+
+  .flying-seed {
+    width: 10px;
+    height: 12px;
+    margin: -6px 0 0 -5px;
   }
 
   .pit-index {

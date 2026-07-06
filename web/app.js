@@ -248,6 +248,34 @@ function cpuLabel(player) {
     : PLAYER_NAMES[player];
 }
 
+function renderSeeds(pitNode, count) {
+  let seedContainer = pitNode.querySelector(".seed-container");
+  if (!seedContainer) {
+    seedContainer = document.createElement("div");
+    seedContainer.className = "seed-container";
+    pitNode.appendChild(seedContainer);
+  }
+  seedContainer.replaceChildren();
+
+  for (let i = 0; i < count; i++) {
+    const seed = document.createElement("div");
+    seed.className = "seed";
+    
+    // Golden angle spiral distribution for realistic seed cluster
+    const angle = i * 2.39996;
+    const radius = Math.min(Math.sqrt(i + 0.5) * 6.5, 36); // in percentage
+    const x = Math.cos(angle) * radius;
+    const y = Math.sin(angle) * radius;
+    const rotation = (i * 73) % 360;
+    
+    seed.style.left = `calc(50% + ${x}%)`;
+    seed.style.top = `calc(50% + ${y}%)`;
+    seed.style.transform = `translate(-50%, -50%) rotate(${rotation}deg)`;
+    
+    seedContainer.appendChild(seed);
+  }
+}
+
 function pitElement(index, seeds, legal) {
   const pit = document.createElement("div");
   pit.className =
@@ -284,6 +312,9 @@ function pitElement(index, seeds, legal) {
   label.className = "pit-index";
   label.textContent = String(index);
   pit.appendChild(label);
+
+  // Render visual seeds inside the pit
+  renderSeeds(pit, seeds);
 
   return pit;
 }
@@ -388,8 +419,10 @@ function pitNode(index) {
 function setPitCount(index, count) {
   const node = pitNode(index);
   if (!node) return;
-  node.querySelector(".pit-count").textContent = String(count);
+  const countEl = node.querySelector(".pit-count");
+  if (countEl) countEl.textContent = String(count);
   node.classList.toggle("is-empty", count === 0);
+  renderSeeds(node, count);
 }
 
 function pulsePit(index) {
