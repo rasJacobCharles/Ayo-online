@@ -134,7 +134,12 @@ def apply_move(state: GameState, pit: int) -> tuple[GameState, list[dict]]:
     a single `annulled_capture` event if the grand-slam rule voided the capture.
     """
     if pit not in legal_moves(state):
-        raise IllegalMove(f"Pit {pit} is not a legal move for player {state.player}.")
+        if _is_opponent_pit(pit, state.player):
+            raise IllegalMove(f"Pit {pit}: Not your pit")
+        elif state.board[pit] == 0:
+            raise IllegalMove(f"Pit {pit}: Pit is empty")
+        else:
+            raise IllegalMove(f"Pit {pit}: You must leave your opponent a move")
 
     player = state.player
     sown_board, path = _apply_sow(state.board, pit)

@@ -50,6 +50,7 @@ const el = {
   turn: document.getElementById("turn-indicator"),
   status: document.getElementById("status"),
   newGame: document.getElementById("new-game"),
+  hint: document.getElementById("hint"),
   modeButtons: Array.from(document.querySelectorAll(".mode-btn")),
   difficulty: document.getElementById("difficulty"),
   difficultyLabel: document.getElementById("difficulty-label"),
@@ -182,6 +183,25 @@ function pitElement(index, seeds, legal) {
     (legal ? " is-legal" : " is-disabled");
   pit.dataset.pit = String(index);
 
+  if (!legal && game.state) {
+    if (game.over) {
+      pit.title = "Game over";
+    } else if (game.thinking) {
+      pit.title = "CPU is thinking…";
+    } else if (game.animating) {
+      pit.title = "Sowing in progress…";
+    } else {
+      const isOwnPit = game.state.player === 0 ? index < 6 : index >= 6;
+      if (!isOwnPit) {
+        pit.title = "Not your pit";
+      } else if (seeds === 0) {
+        pit.title = "Pit is empty";
+      } else {
+        pit.title = "You must leave your opponent a move";
+      }
+    }
+  }
+
   const count = document.createElement("span");
   count.className = "pit-count";
   count.textContent = String(seeds);
@@ -226,6 +246,14 @@ function render() {
 
   el.undo.disabled =
     game.busy || game.thinking || game.animating || game.history.length === 0;
+
+  const showHint =
+    game.mode === "cpu" &&
+    game.difficulty === "easy" &&
+    !game.over &&
+    player === 0;
+  el.hint.classList.toggle("is-hidden", !showHint);
+  el.hint.disabled = game.busy || game.thinking || game.animating;
 }
 
 function setStatus(message, isError = false) {
@@ -420,6 +448,42 @@ async function cpuMove() {
   }
 }
 
+async function requestHint() {
+  if (game.busy || game.thinking || game.animating || game.over) return;
+  game.busy = true;
+  setStatus("Thinking of a hint…");
+  try {
+    const res = await fetch("/cpu-move", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ state: game.state, difficulty: "medium" }),
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      setStatus(body.detail || `Hint request rejected (${res.status})`, true);
+      return;
+    }
+    const data = await res.json();
+    const pit = data.chosen_pit;
+    if (pit !== null && pit !== undefined) {
+      document.querySelectorAll(".pit").forEach((node) => {
+        node.classList.remove("pit-hint");
+      });
+      const node = pitNode(pit);
+      if (node) {
+        node.classList.add("pit-hint");
+        setStatus(`Hint: Try playing pit ${pit}!`);
+      }
+    } else {
+      setStatus("No hint available.");
+    }
+  } catch (err) {
+    setStatus(`Hint request failed: ${err.message}`, true);
+  } finally {
+    game.busy = false;
+  }
+}
+
 async function playMove(pit) {
   if (game.busy || game.thinking || game.animating || game.over) return;
   game.busy = true;
@@ -604,7 +668,10 @@ el.undo.addEventListener("click", undo);
 el.difficulty.addEventListener("change", () => {
   game.difficulty = el.difficulty.value;
   save();
+  syncControls();
+  render();
 });
+el.hint.addEventListener("click", requestHint);
 
 function updateMuteButton() {
   el.mute.textContent = sound.muted ? "🔇" : "🔊";

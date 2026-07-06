@@ -51,7 +51,7 @@ def test_illegal_move_returns_400_with_reason():
     # Pit 7 belongs to player 1; player 0 to move -> illegal.
     resp = client.post("/move", json={"state": state, "pit": 7})
     assert resp.status_code == 400
-    assert "7" in resp.json()["detail"]
+    assert resp.json()["detail"] == "Pit 7: Not your pit"
 
 
 def test_move_on_empty_pit_returns_400():
@@ -59,6 +59,20 @@ def test_move_on_empty_pit_returns_400():
     state["board"][3] = 0  # empty one of player 0's own pits
     resp = client.post("/move", json={"state": state, "pit": 3})
     assert resp.status_code == 400
+    assert resp.json()["detail"] == "Pit 3: Pit is empty"
+
+
+def test_feeding_rule_illegal_move_returns_400():
+    # Opponent side (6..11) empty; only pit 5 can feed. Pit 0 is illegal.
+    state = {
+        "board": [4, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0],
+        "scores": [0, 0],
+        "player": 0,
+        "ply": 0,
+    }
+    resp = client.post("/move", json={"state": state, "pit": 0})
+    assert resp.status_code == 400
+    assert resp.json()["detail"] == "Pit 0: You must leave your opponent a move"
 
 
 def test_cpu_move_plays_a_legal_move():
